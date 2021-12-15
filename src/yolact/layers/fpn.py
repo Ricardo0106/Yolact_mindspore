@@ -1,4 +1,4 @@
-# Copyright 2020 Huawei Technologies Co., Ltd
+# Copyright 2021 Huawei Technologies Co., Ltd
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,20 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ============================================================================
-
+"""FPN"""
 import mindspore.nn as nn
 from mindspore.ops import operations as P
 from mindspore.ops import functional as F
-# from .mobilenet_v1 import conv_bn_relu, MobileNetV1
-# from .resnet import resnet50
 
-def conv_bn_relu(in_channel, out_channel, kernel_size, stride, depthwise, activation='relu6'):
+
+def conv_bn_relu(in_channel, out_channel, kernel_size, stride, depthwise):
     output = []
     output.append(nn.Conv2d(in_channel, out_channel, kernel_size, stride, pad_mode="same",
                             group=1 if not depthwise else in_channel))
-    # output.append(nn.BatchNorm2d(out_channel))
-    # if activation:
-    #     output.append(nn.get_activation(activation))
+
     return nn.SequentialCell(output)
 
 
@@ -48,6 +45,7 @@ class FpnTopDown(nn.Cell):
         self.num_layers = len(in_channel_list)
 
     def construct(self, inputs):
+        """Forward"""
         image_features = ()
         for i, feature in enumerate(inputs):
             image_features = image_features + (self.lateral_convs_list[i](feature),)
@@ -108,11 +106,12 @@ class ResNetV1Fpn(nn.Cell):
     """
     def __init__(self):
         super(ResNetV1Fpn, self).__init__()
-        # self.resnet = resnet
+
         self.fpn = FpnTopDown([512, 1024, 2048], 256)
         self.bottom_up = BottomUp(2, 256, 3, 2)
 
     def construct(self, x):
+        """Forward"""
         # _, _, c3, c4, c5 = self.resnet(x)
         _, c3, c4, c5 = x
         features = self.fpn((c3, c4, c5))
@@ -123,4 +122,3 @@ class ResNetV1Fpn(nn.Cell):
         # 1,256,9,9
         # 1,256,5,5
         return features
-

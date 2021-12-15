@@ -1,3 +1,19 @@
+# Copyright 2021 Huawei Technologies Co., Ltd
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ============================================================================
+
+""" Related parameter configuration """
 from src.yolact.layers.backbone_dcnV2 import ResNetBackbone
 
 resnet_transform = {
@@ -34,13 +50,13 @@ fpn = {
     'interpolation_mode': 'bilinear',
 
     # The number of extra layers to be produced by downsampling starting at P5
-    'num_downsample': 2,  # 新增两个卷积下采样，就是新增p6，p7；
+    'num_downsample': 2,  # Add two new convolutional downsampling, that is, add p6, p7
 
     # Whether to down sample with a 3x3 stride 2 conv layer instead of just a stride 2 selection
-    'use_conv_downsample': True,  # 使用conv下采样；
+    'use_conv_downsample': True,
 
     # Whether to pad the pred layers with 1 on each side (I forgot to add this at the start)
-    # This is just here for backwards compatibility   这只是为了向后兼容
+    # This is just here for backwards compatibility
     'pad': True,
 
     # Whether to add relu to the downsampled layers.
@@ -76,28 +92,29 @@ COCO_LABEL_MAP = {'1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8
                   '74': 65, '75': 66, '76': 67, '77': 68, '78': 69, '79': 70, '80': 71, '81': 72,
                   '82': 73, '84': 74, '85': 75, '86': 76, '87': 77, '88': 78, '89': 79, '90': 80}
 
-# 处理标签label的时候，key加引号报错，用的这个，但是处理loss，这个形式会报错，生成mindrecord用这个，后面训练用上面那个
-# COCO_LABEL_MAP = {1:  1,  2:  2,  3:  3,  4:  4,  5:  5,  6:  6,  7:  7,  8:  8,
-#                   9:  9, 10: 10, 11: 11, 13: 12, 14: 13, 15: 14, 16: 15, 17: 16,
-#                   18: 17, 19: 18, 20: 19, 21: 20, 22: 21, 23: 22, 24: 23, 25: 24,
-#                   27: 25, 28: 26, 31: 27, 32: 28, 33: 29, 34: 30, 35: 31, 36: 32,
-#                   37: 33, 38: 34, 39: 35, 40: 36, 41: 37, 42: 38, 43: 39, 44: 40,
-#                   46: 41, 47: 42, 48: 43, 49: 44, 50: 45, 51: 46, 52: 47, 53: 48,
-#                   54: 49, 55: 50, 56: 51, 57: 52, 58: 53, 59: 54, 60: 55, 61: 56,
-#                   62: 57, 63: 58, 64: 59, 65: 60, 67: 61, 70: 62, 72: 63, 73: 64,
-#                   74: 65, 75: 66, 76: 67, 77: 68, 78: 69, 79: 70, 80: 71, 81: 72,
-#                   82: 73, 84: 74, 85: 75, 86: 76, 87: 77, 88: 78, 89: 79, 90: 80}
+COCO_LABEL_MAP_EVAL = {1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8,
+                       9: 9, 10: 10, 11: 11, 13: 12, 14: 13, 15: 14, 16: 15, 17: 16,
+                       18: 17, 19: 18, 20: 19, 21: 20, 22: 21, 23: 22, 24: 23, 25: 24,
+                       27: 25, 28: 26, 31: 27, 32: 28, 33: 29, 34: 30, 35: 31, 36: 32,
+                       37: 33, 38: 34, 39: 35, 40: 36, 41: 37, 42: 38, 43: 39, 44: 40,
+                       46: 41, 47: 42, 48: 43, 49: 44, 50: 45, 51: 46, 52: 47, 53: 48,
+                       54: 49, 55: 50, 56: 51, 57: 52, 58: 53, 59: 54, 60: 55, 61: 56,
+                       62: 57, 63: 58, 64: 59, 65: 60, 67: 61, 70: 62, 72: 63, 73: 64,
+                       74: 65, 75: 66, 76: 67, 77: 68, 78: 69, 79: 70, 80: 71, 81: 72,
+                       82: 73, 84: 74, 85: 75, 86: 76, 87: 77, 88: 78, 89: 79, 90: 80}
+
 
 coco2017_dataset = {
     'name': 'COCO 2017',
 
-    'train_images': './data/coco/images/',
-    'train_info': './data/coco/annotations/instances_train2017.json',
-    'valid_images': './data/coco/images/',
-    'valid_info': './data/coco/annotations/instances_val2017.json',
+    'train_images': './data/coco2017/images/',
+    'train_info': './data/coco2017/annotations/instances_val2017.json',
+    'valid_images': './data/coco2017/images/',
+    'valid_info': './data/coco2017/annotations/instances_val2017.json',
     'has_gt': True,
     'class_names': COCO_CLASSES,
-    'label_map': COCO_LABEL_MAP
+    'label_map': COCO_LABEL_MAP,
+    'label_map_eval': COCO_LABEL_MAP_EVAL,
 }
 
 mask_type = {
@@ -105,48 +122,40 @@ mask_type = {
     'lincomb': 1,
 }
 
-# activation_func = ed({
-#     'tanh': P.Tanh,
-#     'sigmoid': P.Sigmoid,
-#     'softmax': lambda x: P.Softmax(x, dim=-1),
-#     'relu': lambda x: P.ReLU(x),
-#     'none': lambda x: x,
-# })
 yolact_plus_resnet50_config = {
 
-    # 'mindrecord_dir': "/data/wh/MindRecord_COCO2017_Train0610/",
-    # 'mindrecord_dir': '/data/MindRecord_COCO2017_yolact/',
-    # 'coco_root': '/data/coco2017',
-    # 'IMAGE_DIR': '/data/coco2017/train2017',
-    # 'ANNO_PATH': '/data/coco2017/annotations',
-
-    'mindrecord_dir': '/data/MindRecord_COCO2017_small/',
-    'coco_root': '/data/coco_wh/',
-    'IMAGE_DIR': '/data/coco_wh/train2017',
-    'ANNO_PATH': '/data/coco_wh/annotations',
+    'mindrecord_dir': '/data/yolactms/MindRecord_COCO2017_val/',
+    'coco_root': '/data/coco2017',
+    'IMAGE_DIR': '/data/coco2017/val2017',
+    'ANNO_PATH': '/data/coco2017/annotations',
 
     'max_instance_count': 128,
     'img_width': 550,
     'img_height': 550,
+    'ckpt_file': '/data/yolact_yin/checkpoint/ckpt_0/yolact-90_619.ckpt',
+    'mask_count': 15,
+    'file_name': 'Yolact',
+    'file_format': 'MINDIR',
+    'random_crowd': 0,
 
-    'train_data_type': "train2017",
+    'train_data_type': "val2017",
     'val_data_type': "val2017",
     'instance_set': "annotations/instances_{}.json",
 
     'name': 'yolact_plus_resnet50',
 
-    'epoch_size': 1000,  # 54, 四卡
+    'epoch_size': 300,  # 54,
     'pretrain_epoch_size': 0,
     'save_checkpoint': True,
     'save_checkpoint_epochs': 10,  # 1,
     'keep_checkpoint_max': 100, # 54,
-    "save_checkpoint_path": './checkpoint',
+    "save_checkpoint_path": './checkpoint/with_torch_pth',
 
-    'batch_size': 1,  # 8,
+    'batch_size': 8,  # 8,
     'num_priors': 57744, # 19248,
     # Backbone Settings
     'backbone': resnet50_dcnv2,
-    # 'selected_layers': range(1, 3),
+    #'selected_layers': range(1, 3),
     'dataset': coco2017_dataset,
     # 'num_classes': len(coco2017_dataset['class_names']) + 1,  # This should include the background class
     'num_classes': len(coco2017_dataset['class_names']) + 1,  # This should include the background class
@@ -154,7 +163,7 @@ yolact_plus_resnet50_config = {
     'max_iter': 800000,
 
     # Mask Settings
-     # 'mask_type': mask_type.lincomb,
+    # 'mask_type': mask_type.lincomb,
     'mask_type': mask_type['lincomb'],
     'mask_alpha': 6.125,
     'mask_proto_src': 0,
@@ -171,6 +180,7 @@ yolact_plus_resnet50_config = {
     # The rest are neutral and not used in calculating the loss.
     'positive_iou_threshold': 0.5,
     'negative_iou_threshold': 0.4,
+    'score_threshold': 0,
 
     'crowd_iou_threshold': 0.7,
 
@@ -180,12 +190,13 @@ yolact_plus_resnet50_config = {
     'max_num_detections': 100,
 
     # dw' = momentum * dw - lr * (grad + decay * w)
-    'lr': 5e-4,# 1e-3, # 单卡 , 四卡 4e-3,
+    'lr': 5e-4,# 1e-3,
     'momentum': 0.9,
     'decay': 5e-4,
+    'loss_scale': 8,
 
     # For each lr step, what to multiply the lr with
-    'gamma': 0.1,  # 对应论文中说的每个lr_step，学习率除10；
+    'gamma': 0.1,
     'lr_steps': (280000, 600000, 700000, 750000),
 
     # Initial learning rate to linearly warmup from (if until > 0)
@@ -239,7 +250,7 @@ yolact_plus_resnet50_config = {
     'augment_photometric_distort': True,
     # Have a chance to scale down the image and pad (to emulate smaller detections)
     'augment_expand': True,
-    # Potentialy sample a random crop from the image and put it in a random place
+    # Potentially sample a random crop from the image and put it in a random place
     'augment_random_sample_crop': True,
     # Mirror the image with a probability of 1/2
     'augment_random_mirror': True,
@@ -269,7 +280,7 @@ yolact_plus_resnet50_config = {
     'focal_loss_alpha': 0.25,
     'focal_loss_gamma': 2,
 
-    # The initial bias toward forground objects, as specified in the focal loss paper
+    # The initial bias toward foreground objects, as specified in the focal loss paper
     'focal_loss_init_pi': 0.01,
 
     # Keeps track of the average number of examples for each class, and weights the loss for that class accordingly.
@@ -388,10 +399,6 @@ yolact_plus_resnet50_config = {
 }
 
 
-
-
-
-
 COLORS = ((244, 67, 54),
           (233, 30, 99),
           (156, 39, 176),
@@ -415,4 +422,3 @@ COLORS = ((244, 67, 54),
 # These are in BGR and are for ImageNet
 MEANS = (103.94, 116.78, 123.68)
 STD = (57.38, 57.12, 58.40)
-

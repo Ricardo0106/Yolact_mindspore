@@ -1,39 +1,55 @@
+# Copyright 2021 Huawei Technologies Co., Ltd
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ============================================================================
+
+""" Operate on the dataset """
 import os
 import cv2
 import mmcv
 import numpy as np
+from numpy import random
 import mindspore.dataset as de
 import mindspore.dataset.vision.c_transforms as C
-from numpy import random
-from src.config import MEANS
 from mindspore.mindrecord import FileWriter
+from src.config import MEANS
 from src.config import yolact_plus_resnet50_config as cfg
 
 
-def pad_to_max(img, gt_bboxes, gt_label, crowd_boxes, gt_mask, num_crowds, instance_count,crowd_count):
-
+def pad_to_max(img, gt_bboxes, gt_label, crowd_boxes, gt_mask, instance_count, crowd_count):
     pad_max_number = cfg['max_instance_count']
     gt_box_new = np.pad(gt_bboxes, ((0, pad_max_number - instance_count), (0, 0)), mode="constant", constant_values=0)
     # crowd_box_new  pad_num=10
     crowd_box_new = np.pad(crowd_boxes, ((0, 10 - crowd_count), (0, 0)), mode="constant", constant_values=0)
     gt_label_new = np.pad(gt_label, ((0, pad_max_number - instance_count)), mode="constant", constant_values=-1)
 
-    return img, gt_box_new, gt_label_new, crowd_box_new, gt_mask, num_crowds
+    return img, gt_box_new, gt_label_new, crowd_box_new, gt_mask
 
-def transpose_column(img, gt_bboxes, gt_label, crowd_boxes, gt_mask,num_crowds):
+def transpose_column(img, gt_bboxes, gt_label, crowd_boxes, gt_mask):
     """transpose operation for image"""
-    img_data = img.transpose(2, 0, 1).copy() # float32
-    gt_bboxes = gt_bboxes.astype(np.float16) # 源码float64
-    crowd_box_new = crowd_boxes.astype(np.float16)
+    img_data = img.transpose(2, 0, 1).copy()
+    img_data = img_data.astype(np.float32)# float32
+    gt_bboxes = gt_bboxes.astype(np.float32)
+    crowd_box_new = crowd_boxes.astype(np.float32)
     gt_label = gt_label.astype(np.int32)
     gt_mask_data = gt_mask.astype(np.bool)
-    # gt_label = gt_label.astype(np.float16)    # 源码float32
-    # gt_mask_data = gt_mask.astype(np.uint8)  # 源码unit8
-    return (img_data, gt_bboxes, gt_label, crowd_box_new, gt_mask_data,num_crowds)
+
+
+
+    return (img_data, gt_bboxes, gt_label, crowd_box_new, gt_mask_data)
 
 def toPercentCoords(img, gt_bboxes, gt_label, num_crowds, gt_mask):
-
-    height, width, channels = img.shape
+    height, width, _ = img.shape
     gt_bboxes[:, 0] /= width
     gt_bboxes[:, 2] /= width
     gt_bboxes[:, 1] /= height
@@ -44,7 +60,7 @@ def toPercentCoords(img, gt_bboxes, gt_label, num_crowds, gt_mask):
 def imnormalize_column(img, gt_bboxes, gt_label, gt_num, gt_mask):
 
     """imnormalize operation for image"""
-    img_data = mmcv.imnormalize(img, [123.68,116.78, 103.94], [58.40, 57.12, 57.38], True)
+    img_data = mmcv.imnormalize(img, [123.68, 116.78, 103.94], [58.40, 57.12, 57.38], True)
     img_data = img_data.astype(np.float32)
     return (img_data, gt_bboxes, gt_label, gt_num, gt_mask)
 
@@ -54,7 +70,7 @@ def backboneTransform(img, gt_bboxes, gt_label, num_crowds, gt_mask):
     img_data = c(img)
     return (img_data, gt_bboxes, gt_label, num_crowds, gt_mask)
 
-class BackboneTransform(object):
+class BackboneTransform():
     """
     Transforms a BRG image made of floats in the range [0, 255] to whatever
     input the current backbone network needs.
@@ -63,11 +79,9 @@ class BackboneTransform(object):
     in_channel_order is probably 'BGR' but you do you, kid.
     """
     def __init__(self):
-        # cfg.backbone.transform, mean, std, 'BGR'
         self.mean = np.array((103.94, 116.78, 123.68), dtype=np.float32)
-        self.std  = np.array((57.38, 57.12, 58.40),  dtype=np.float32)
+        self.std = np.array((57.38, 57.12, 58.40), dtype=np.float32)
 
-        # Here I use "Algorithms and Coding" to convert string permutations to numbers
         self.channel_map = {c: idx for idx, c in enumerate('BGR')}
         self.channel_permutation = [self.channel_map[c] for c in 'RGB']
 
@@ -79,7 +93,7 @@ class BackboneTransform(object):
 
         return img.astype(np.float32)
 
-def resize_column(img, gt_bboxes, gt_label, num_crowds, gt_mask,resize_gt=True):
+def resize_column(img, gt_bboxes, gt_label, num_crowds, gt_mask, resize_gt=True):
     """resize operation for image"""
     img_data = img
     img_data, w_scale, h_scale = mmcv.imresize(
@@ -94,10 +108,9 @@ def resize_column(img, gt_bboxes, gt_label, num_crowds, gt_mask,resize_gt=True):
         gt_bboxes[:, 0::2] = np.clip(gt_bboxes[:, 0::2], 0, img_shape[1] - 1)  # x1, x2   [0, W-1]
         gt_bboxes[:, 1::2] = np.clip(gt_bboxes[:, 1::2], 0, img_shape[0] - 1)  # y1, y2   [0, H-1]
         gt_mask_data = np.array([
-        mmcv.imresize(mask, (cfg['img_width'], cfg['img_height']), interpolation='nearest')
-        for mask in gt_mask])
+            mmcv.imresize(mask, (cfg['img_width'], cfg['img_height']), interpolation='nearest')
+            for mask in gt_mask])
 
-    # 新增
     w = gt_bboxes[:, 2] - gt_bboxes[:, 0]
     h = gt_bboxes[:, 3] - gt_bboxes[:, 1]
 
@@ -107,7 +120,7 @@ def resize_column(img, gt_bboxes, gt_label, num_crowds, gt_mask,resize_gt=True):
     gt_label = gt_label[keep]
     num_crowds[0] = (gt_label < 0).sum()
 
-    return  (img_data, gt_bboxes, gt_label, num_crowds, gt_mask_data)
+    return (img_data, gt_bboxes, gt_label, num_crowds, gt_mask_data)
 
 def randomMirror(image, boxes, gt_label, num_crowds, masks):
 
@@ -141,7 +154,6 @@ def randomSampleCrop(image, boxes, gt_label, num_crowds, masks):
             left = _rand() * (width - w)
             top = _rand() * (height - h)
 
-            # rect = np.array([int(top), int(left), int(top + h), int(left + w)])
             rect = np.array([int(left), int(top), int(left + w), int(top + h)])
             overlap = jaccard_numpy(boxes, rect)
 
@@ -149,7 +161,6 @@ def randomSampleCrop(image, boxes, gt_label, num_crowds, masks):
             if overlap.min() < min_iou and overlap.max() > (min_iou + 0.2):
                 continue
 
-            # image_t = image_t[rect[0]:rect[2], rect[1]:rect[3], :]
             # cut the crop from the image
             image_t = image_t[rect[1]:rect[3], rect[0]:rect[2], :]
             centers = (boxes[:, :2] + boxes[:, 2:4]) / 2.0
@@ -184,7 +195,7 @@ def randomSampleCrop(image, boxes, gt_label, num_crowds, masks):
             boxes_t[:, 2:4] -= rect[:2]
             masks_t = masks_t[:, rect[1]:rect[3], rect[0]:rect[2]]
 
-            return (image_t, boxes_t,labels_t, num_crowds, masks_t)
+            return (image_t, boxes_t, labels_t, num_crowds, masks_t)
 
 def expand_column(img, gt_bboxes, gt_label, num_crowds, gt_mask):
     """expand operation for image"""
@@ -193,7 +204,7 @@ def expand_column(img, gt_bboxes, gt_label, num_crowds, gt_mask):
 
     return (img, gt_bboxes, gt_label, num_crowds, gt_mask)
 
-class Expand(object):
+class Expand():
     """expand image"""
     def __init__(self, mean):
         self.mean = mean
@@ -210,7 +221,7 @@ class Expand(object):
         top = int(random.uniform(0, h * ratio - h))
         expand_img[top:top + h, left:left + w] = img
         img = expand_img
-        # 对boxes处理
+        # Deal with bounding box
         boxes += np.tile((left, top), 2)
 
         mask_count, mask_h, mask_w = mask.shape
@@ -292,8 +303,6 @@ def preprocess_fn(image, box, mask, num_crowdses, is_training):
     def _data_aug(image, box, mask, num_crowdses, is_training):
         """Data augmentation function."""
 
-        image_shape = image.shape[:2]
-        instance_count_before = box.shape[0]
         gt_box = box[:, :4]
         gt_label = box[:, 4]
         gt_mask = mask.copy()
@@ -305,20 +314,16 @@ def preprocess_fn(image, box, mask, num_crowdses, is_training):
             return _infer_data(image, gt_box, gt_label, num_crowdses, gt_mask)
 
         input_data = image, gt_box, gt_label, num_crowdses, gt_mask
-        # print("处理前：")
-        # print(image.shape, gt_box.shape, gt_label.shape, num_crowdses.shape, gt_mask.shape)
         input_data = photoMetricDistortion(*input_data)
         input_data = expand_column(*input_data)
-        input_data = randomSampleCrop(*input_data)
-        input_data = randomMirror(*input_data)
         input_data = resize_column(*input_data)
         input_data = backboneTransform(*input_data)
         input_data = toPercentCoords(*input_data)
         input_data = split_crowd(*input_data)
-        _, gt_box, _, crowd_boxes, _ , _= input_data
+        _, gt_box, _, crowd_boxes, _ = input_data
         instance_count_after = gt_box.shape[0]
         crowd_count = crowd_boxes.shape[0]
-        input_data = pad_to_max(*input_data, instance_count_after,crowd_count)
+        input_data = pad_to_max(*input_data, instance_count_after, crowd_count)
         output_data = transpose_column(*input_data)
 
         return output_data
@@ -326,31 +331,36 @@ def preprocess_fn(image, box, mask, num_crowdses, is_training):
     return _data_aug(image, box, mask, num_crowdses, is_training)
 
 def split_crowd(img, gt_bboxes, gt_label, num_crowds, gt_mask):
-
+    """Split the crowd"""
     cur_crowds = num_crowds[0]
     if cur_crowds > 0:
-       split = lambda x: (x[-cur_crowds:], x[:-cur_crowds])
-       crowd_boxes, truths = split(gt_bboxes)
+        split = lambda x: (x[-cur_crowds:], x[:-cur_crowds])
+        crowd_boxes, truths = split(gt_bboxes)
 
-       # We don't use the crowd labels or masks
-       _, split_label = split(gt_label)
+        # We don't use the crowd labels or masks
+        _, split_label = split(gt_label)
 
-       # labels[idx] = labels[idx][:-cur_crowds]
-       _, split_mask = split(gt_mask)
+        # labels[idx] = labels[idx][:-cur_crowds]
+        _, split_mask = split(gt_mask)
 
     else:
-       crowd_boxes = np.array([[0,0,0,0]])
-       truths = gt_bboxes
-       split_label = gt_label
-       split_mask = gt_mask
-    return (img, truths, split_label, crowd_boxes, split_mask,num_crowds)
+        crowd_boxes = np.array([[0, 0, 0, 0]])
+        truths = gt_bboxes
+        split_label = gt_label
+        split_mask = gt_mask
+
+    return (img, truths, split_label, crowd_boxes, split_mask)
 
 
-def create_coco_label(is_training):
+def create_coco_label(is_training, coco_path=None):
     """Get image path and annotation from COCO."""
     from pycocotools.coco import COCO
 
     coco_root = cfg['coco_root']
+
+    if coco_path:
+        coco_root = coco_path
+
     data_type = cfg['val_data_type']
     if is_training:
         data_type = cfg['train_data_type']
@@ -371,7 +381,6 @@ def create_coco_label(is_training):
         file_name = image_info[0]["file_name"]
         image_path = os.path.join(coco_root, data_type, file_name)
         if not os.path.isfile(image_path):
-            # print("{}/{}: {} is in annotations but not exist".format(ind + 1, images_num, image_path))
             continue
         crowd = coco.getAnnIds(imgIds=img_id, iscrowd=True)
         target = coco.getAnnIds(imgIds=img_id, iscrowd=False)
@@ -400,24 +409,20 @@ def create_coco_label(is_training):
                 instance_masks.append(m)
                 bbox = label["bbox"]
                 label_idx = label['category_id']
-                map = get_label_map()
+                _map = get_label_map()
                 if label_idx >= 0:
-                    label_idx = map[label_idx] - 1
-                # else:
-                #     print("not in classes")
+                    label_idx = _map[label_idx] - 1
+
                 # get coco bbox
                 x1, x2 = bbox[0], bbox[0] + bbox[2]
                 y1, y2 = bbox[1], bbox[1] + bbox[3]
                 annos.append([x1, y1, x2, y2] + [label_idx])
 
             if annos:
-
                 image_anno_dict[image_path] = np.array(annos)
                 instance_masks = np.stack(instance_masks, axis=0).astype(np.bool)
                 masks[image_path] = np.array(instance_masks).tobytes()
-                # masks_shape[image_path] = np.array(instance_masks.shape, dtype=np.int32)
                 num_crowdses[image_path] = np.array(num_crowds)
-                # is_crowds[image_path] = np.array(crowds)
             else:
                 print("no annotations for image ", file_name)
                 continue
@@ -425,16 +430,18 @@ def create_coco_label(is_training):
             image_files.append(image_path)
 
     return image_files, image_anno_dict, masks, num_crowdses
-# torch.from_numpy(img).permute(2, 0, 1), target, masks, height, width, num_crowds
 
-def data_to_mindrecord_byte_image(dataset="coco", is_training=True, prefix="yolact.mindrecord", file_num=8): #file_num=1):
+def data_to_mindrecord_byte_image(dataset="coco", is_training=True, prefix="yolact.mindrecord",
+                                  file_num=8, mind_path=None, coco_path=None):
     """Create MindRecord file."""
     mindrecord_dir = cfg['mindrecord_dir']
+    if mind_path:
+        mindrecord_dir = mind_path
     mindrecord_path = os.path.join(mindrecord_dir, prefix)
 
     writer = FileWriter(mindrecord_path, file_num)
     if dataset == "coco":
-        image_files, image_anno_dict, masks, num_crowdses = create_coco_label(is_training)
+        image_files, image_anno_dict, masks, num_crowdses = create_coco_label(is_training, coco_path)
     else:
         print("Error unsupported other dataset")
         return
@@ -443,7 +450,7 @@ def data_to_mindrecord_byte_image(dataset="coco", is_training=True, prefix="yola
         "image": {"type": "bytes"},
         "annotation": {"type": "int32", "shape": [-1, 5]},
         "mask": {"type": "bytes"},
-        "num_crowdses": {"type": "int32","shape": [-1]}
+        "num_crowdses": {"type": "int32", "shape": [-1]}
     }
     writer.add_schema(yolact_json, "yolact_json")
 
@@ -453,20 +460,17 @@ def data_to_mindrecord_byte_image(dataset="coco", is_training=True, prefix="yola
             img = f.read()
         annos = np.array(image_anno_dict[image_name], dtype=np.int32)
         mask = masks[image_name]
-        # mask_shape = masks_shape[image_name]
         num_crowds = num_crowdses[image_name]
-        # row = {"image": img, "annotation": annos, "mask": mask, "mask_shape": mask_shape,"num_crowds":num_crowds}
-        row = {"image": img, "annotation": annos, "mask": mask,"num_crowdses": num_crowds}
+        row = {"image": img, "annotation": annos, "mask": mask, "num_crowdses": num_crowds}
         if (ind + 1) % 1000 == 0:
             print("writing {}/{} into mindrecord".format(ind + 1, image_files_num))
         writer.write_raw_data([row])
     writer.commit()
 
 def create_yolact_dataset(mindrecord_file, batch_size=2, device_num=1, rank_id=0,
-                            is_training=True, num_parallel_workers=8):
+                          is_training=True, num_parallel_workers=8):
     """Create MaskRcnn dataset with MindDataset."""
     cv2.setNumThreads(0)
-    # 这个config不是参数文件
     de.config.set_prefetch_size(8)
     ds = de.MindDataset(mindrecord_file, columns_list=["image", "annotation", "mask", "num_crowdses"],
                         num_shards=device_num, shard_id=rank_id,
@@ -476,55 +480,16 @@ def create_yolact_dataset(mindrecord_file, batch_size=2, device_num=1, rank_id=0
     ds = ds.map(operations=decode, input_columns=["image"])
     compose_map_func = (lambda image, annotation, mask, num_crowds:
                         preprocess_fn(image, annotation, mask, num_crowds, is_training))
-    # i = 0  # 现在用的
-    # root = './beforepicture'
-    # for img, box, _, _ in ds.create_tuple_iterator(output_numpy=True):
-    #     # img = img.transpose(1, 2, 0)
-    #     # img = Image.fromarray((img * 255).astype(np.uint8))
-    #     img = Image.fromarray(img.astype(np.uint8))
-    #     save_image(img, i)
-    #     draw = ImageDraw.Draw(img)
-    #     k = 0
-    #     for anno in box:
-    #         draw.rectangle([anno[0], anno[1], anno[2], anno[3]], outline=(255, 0, 0))
-    #         draw.text([anno[0], anno[1]], str(anno[4]), (255, 0, 0))
-    #         img.save(os.path.join(root, str(i) + "anno" + '.png'))
-    #         k = k + 1
-    #     i = i + 1
+
 
     if is_training:
         ds = ds.map(operations=compose_map_func,
-                             input_columns=["image", "annotation", "mask", "num_crowdses"],
-                             output_columns=["image",  "box", "label", "crowd_box", "mask","num_crowds"],
-                             column_order=["image",  "box", "label", "crowd_box", "mask","num_crowds"],
-                            python_multiprocessing=False,
-                             num_parallel_workers=8)
-        # i=0 # 现在用的
-        # root = './afterpicture'
-        # for img, box, label, a, mask,_ in ds.create_tuple_iterator(output_numpy=True):
-        #     img = img.transpose(1, 2, 0)
-        #     # img = Image.fromarray((img * 255).astype(np.uint8))
-        #     img = Image.fromarray(img.astype(np.uint8))
-        #     save_image(img, i)
-        #     j=0
-        #     for m in mask:
-        #         mm = Image.fromarray((m * 255).astype(np.uint8))
-        #         save_mask(mm, i, j)
-        #         j=j+1
-        #     draw = ImageDraw.Draw(img)
-        #     # for j in range(len(box)):
-        #     #    thickness = 3
-        #     #    left, top, right, bottom = box[j][0:4]
-        #     #    draw = ImageDraw.Draw(img)
-        #     #    for i in range(thickness):
-        #     #      draw.rectangle([left + i, top + i, right - i, bottom - i], outline=(255, 255, 255))
-        #     k=0
-        #     for anno in box:
-        #         draw.rectangle([anno[0], anno[1], anno[2], anno[3]], outline=(255, 0, 0))
-        #         draw.text([anno[0], anno[1]], str(label[k]), (255, 0, 0))
-        #         img.save(os.path.join(root, str(i)+"anno"+'.png'))
-        #         k=k+1
-        #     i = i+1
+                    input_columns=["image", "annotation", "mask", "num_crowdses"],
+                    output_columns=["image", "box", "label", "crowd_box", "mask"],
+                    column_order=["image", "box", "label", "crowd_box", "mask"],
+                    python_multiprocessing=False,
+                    num_parallel_workers=8)
+
         ds = ds.batch(batch_size, drop_remainder=True, pad_info={"mask": ([cfg['max_instance_count'], None, None], 0)})
 
     else:
@@ -537,7 +502,7 @@ def create_yolact_dataset(mindrecord_file, batch_size=2, device_num=1, rank_id=0
 
     return ds
 
-def save_mask(img,name1,name2):
+def save_mask(img, name1, name2):
     """Save a numpy image to the disk
 
     Parameters:
@@ -550,7 +515,7 @@ def save_mask(img,name1,name2):
     filename = str(name1)+ str(name2)+"mm"+".jpg"
     img.save(os.path.join(img_path, filename))
 
-def save_image(img,name):
+def save_image(img, name):
     """Save a numpy image to the disk
 
     Parameters:
@@ -580,10 +545,7 @@ def annToMask(ann, height, width):
     return m
 
 def get_label_map():
-    if cfg['dataset']['label_map'] is None:
-        return {x + 1: x + 1 for x in range(len(cfg['dataset']['class_names']))}
-    else:
-        return cfg['dataset']['label_map']
+    return cfg['dataset']['label_map_eval']
 
 def _rand(a=0., b=1.):
     """Generate random."""

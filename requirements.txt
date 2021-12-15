@@ -1,0 +1,2 @@
+numpy >= 1.17.0
+pycocotools >= 2.0.2        # for st test

@@ -1,3 +1,4 @@
+#!/bin/bash
 # Copyright 2021 Huawei Technologies Co., Ltd
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +14,30 @@
 # limitations under the License.
 # ============================================================================
 
-#from .ms_detection import Detect
+if [ $# -lt 1 ]
+then
+  echo "Usage: bash run_standalone_train.sh DEVICE_ID"
+  exit 1
+fi
 
+ulimit -u unlimited
 
-#__all__ = ['Detect']
+export DEVICE_ID=$1
+export RANK_ID=0
+
+rm -rf ./train_parallel_standalone
+mkdir ./train_parallel_standalone
+cp ../*.py ./train_parallel_standalone
+cp *.sh ./train_parallel_standalone
+cp -r ../weights ./train_parallel_standalone
+cp -r ../src ./train_parallel_standalone
+cd ./train_parallel_standalone || exit
+
+env > env.log
+
+nohup python train.py \
+            --device_num=1 \
+            --rank_id=$RANK_ID \
+            --distribute=False > log 2>&1 &
+
+cd ..

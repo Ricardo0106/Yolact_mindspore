@@ -14,13 +14,18 @@
 # limitations under the License.
 # ============================================================================
 
-if [ $# != 1 ] && [ $# != 2 ]
+if [ $# -lt 2 ]
 then
-  echo "Usage: bash run_distribute_train_yolact.sh [RANK_TABLE_FILE] "
+  echo "####################################################"
+  echo "Usage: bash run_distribute_train.sh RANK_TABLE_FILE DEVICE_NUMS"
+  echo "Example:"
+  echo "bash run_distribute_train.sh hccl_8p.json 8"
+  echo "use hccl_8p.json as RANK_TABLE_FILE and 8 devices"
+  echo "####################################################"
   exit 1
 fi
 
-get_real_path(){
+get_absolute_path(){
   if [ "${1:0:1}" == "/" ]; then
     echo "$1"
   else
@@ -28,9 +33,9 @@ get_real_path(){
   fi
 }
 
-PATH1=$(get_real_path $1)
-#PATH2=$(get_real_path $2)
-#[PRETRAINED_CKPT_PATH](optional)"
+PATH1=$(get_absolute_path $1)
+DEVICE_NUM=$2
+echo "you want to run on $DEVICE_NUM devices"
 
 if [ ! -f $PATH1 ]
 then 
@@ -38,26 +43,18 @@ then
 exit 1
 fi 
 
-#if [ ! -f $PATH2 ]
-#then
-#    echo "error: PRETRAINED_CKPT_PATH=$PATH2 is not a file"
-#exit 1
-#fi
-
 
 export SERVER_ID=0
 ulimit -u unlimited
-export DEVICE_NUM=4
-export RANK_SIZE=4
 rank_start=$((DEVICE_NUM * SERVER_ID))
 first_device=0
-export RANK_TABLE_FILE=$PATH1
 
 for((i=0; i<${DEVICE_NUM}; i++))
 do
     export DEVICE_ID=$((first_device+i))
     export RANK_ID=$((rank_start + i))
     rm -rf ./train_parallel$i
+    echo "$i"
     mkdir ./train_parallel$i
     cp ../*.py ./train_parallel$i
     cp *.sh ./train_parallel$i
@@ -65,17 +62,13 @@ do
     cp -r ../src ./train_parallel$i
     cd ./train_parallel$i || exit
 
-    echo "start training for rank $RANK_ID, device $DEVICE_ID"
+    echo "[+] start training for rank $RANK_ID, device $DEVICE_ID"
     env > env.log
-    if [ $# == 1 ]
-    then
-        nohup python train.py --device_num=4 > log 2>&1 &
-    fi
-    
-    if [ $# == 2 ]
-    then
-        nohup python train.py --device_num=4 > log 2>&1 &
-    fi
+
+    nohup python train.py \
+    --device_num=$DEVICE_NUM \
+    --rank_id=$RANK_ID \
+    --device_id=$DEVICE_ID > log 2>&1 &
 
     cd ..
 done
